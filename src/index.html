@@ -153,7 +153,29 @@
         }
       );
 
+      const __heap_base = instance.exports.__heap_base;
+
+      function toCString(string) {
+        for (let i = 0; i < string.length; i++) {
+          memory[__heap_base + i] = string.charCodeAt(i);
+        }
+
+        memory[__heap_base + string.length] = 0;
+
+        return __heap_base;
+      }
+
       console.dir(instance.exports);
+      console.info(instance.exports.__heap_base);
+
+      console.info(instance.exports.igGET_FLT_MAX());
+
+      const igContext = instance.exports.igCreateContext(null);
+      console.info(igContext);
+      instance.exports.igNewFrame();
+      instance.exports.igShowDemoWindow(true);
+      instance.exports.igRender();
+      console.info(instance.exports.igGetDrawData());
     </script>
   </body>
 </html>
