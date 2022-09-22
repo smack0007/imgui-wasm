@@ -1,0 +1,28 @@
+{
+	"compilerOptions": {
+		"lib": [
+			"deno.window",
+			"deno.unstable"
+		]
+	},
+	"lint": {
+		"rules": {
+			"tags": [
+				"recommended"
+			],
+			"include": [
+				"explicit-function-return-type"
+			]
+		}
+	},
+	"fmt": {
+		"options": {
+			"useTabs": false,
+			"lineWidth": 120,
+			"indentWidth": 2
+		}
+	},
+	"tasks": {
+		"codegen-scraper": "cd ./tools && deno run --allow-read --allow-write --allow-run ./codegen-scraper.ts > ../tmp/codegen-scraper.out"
+	}
+}
