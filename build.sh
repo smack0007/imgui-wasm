@@ -6,4 +6,5 @@ SRC_DIRECTORY=${SCRIPT_DIRECTORY}/src
 
 mkdir -p ${BIN_DIRECTORY}
 
+deno bundle ${SRC_DIRECTORY}/mod.ts ${BIN_DIRECTORY}/imgui.js
 cp -u ${SRC_DIRECTORY}/index.html ${BIN_DIRECTORY}/index.html

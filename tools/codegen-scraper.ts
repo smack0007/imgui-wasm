@@ -3,7 +3,7 @@ import { EXT_PATH, joinPath, TMP_PATH } from "./paths.ts";
 
 const FILE_PATHS_TO_SCRAPE = [joinPath(EXT_PATH, "cimgui", "imgui", "imgui.h")];
 
-const STRUCTS_TO_SCRAPE = ["ImGuiIO"];
+const STRUCTS_TO_SCRAPE = ["ImGuiIO", "ImVec2"];
 
 let buffer = "";
 
@@ -35,7 +35,10 @@ async function main(): Promise<number> {
   writeStartCode();
 
   for await (const filePath of FILE_PATHS_TO_SCRAPE) {
+    writePrintF(`//`);
     writePrintF(`// ${filePath}`);
+    writePrintF(`//`);
+    writePrintF("");
     await scrapeFile(filePath);
     writePrintF("");
   }
@@ -68,6 +71,8 @@ function writeStartCode(): void {
   write("");
   write("int main(int argc, char* args[]) {");
   writePrintF("sizeof(int) === %llu", "sizeof(int)");
+  writePrintF("sizeof(void*) === %llu", "sizeof(void*)");
+  writePrintF("");
 }
 
 function writeEndCode(): void {
@@ -104,38 +109,57 @@ async function scrapeFile(filePath: string): Promise<void> {
         !line.startsWith("{") &&
         !line.startsWith("}") &&
         !line.startsWith("IMGUI_API ") &&
-        !line.startsWith("#")
+        !line.startsWith("#") &&
+        line.indexOf("(") === -1 &&
+        line.indexOf("CLASS_EXTRA") === -1
       ) {
         write(`// ${line}`);
 
         const parts = line
+          .replaceAll(", ", ",")
           .replaceAll("ImFontAtlas*Fonts", "ImFontAtlas* Fonts")
           .replaceAll("const char*", "char*")
           .split(/\s+/, 2);
         write(`// ${JSON.stringify(parts)}`);
 
         const memberType = parts[0];
-        let memberName = parts[1];
+        const memberNames = parts[1].split(",");
 
-        if (memberName.startsWith("(*") || memberName === "_UnusedPadding;") {
-          continue;
+        for (let memberName of memberNames) {
+          if (memberName.startsWith("(*") || memberName === "_UnusedPadding;") {
+            continue;
+          }
+
+          const memberNameEnd = memberName.indexOf(";");
+          if (memberNameEnd !== -1) {
+            memberName = memberName.substring(0, memberNameEnd);
+          }
+
+          let arrayLength = "";
+          if (memberName.endsWith("]")) {
+            const arrayLengthStart = memberName.indexOf("[") + 1;
+            const arrayLengthEnd = memberName.length - 1;
+            arrayLength =
+              "(unsigned long long)" +
+              memberName.substring(arrayLengthStart, arrayLengthEnd);
+            memberName = memberName.substring(0, arrayLengthStart - 1);
+          }
+
+          writePrintF(`\t\t${memberName}: {`);
+          writePrintF(`\t\t\ttype: "${memberType}",`);
+          writePrintF(
+            "\t\t\toffset: %llu,",
+            `offsetof(${captureName}, ${memberName})`
+          );
+          if (arrayLength !== "") {
+            writePrintF("\t\t\tlength: %llu,", arrayLength);
+          }
+          writePrintF(`\t\t},`);
         }
-
-        const memberNameEnd = memberName.indexOf(";");
-        if (memberNameEnd !== -1) {
-          memberName = memberName.substring(0, memberNameEnd);
-        }
-
-        writePrintF(`\t\t${memberName}: {`);
-        writePrintF(`\t\t\ttype: "${memberType}",`);
-        writePrintF(
-          "\t\t\toffset: %llu,",
-          `offsetof(${captureName}, ${memberName})`
-        );
-        writePrintF(`\t\t}`);
       } else if (line.startsWith("}")) {
         writePrintF("\t}");
         writePrintF("}");
+        writePrintF("");
         captureMode = null;
         captureName = null;
       }

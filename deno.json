@@ -23,6 +23,7 @@
 		}
 	},
 	"tasks": {
+		"codegen": "cd ./tools && deno run --allow-run --allow-read --allow-write ./codegen.ts",
 		"codegen-scraper": "cd ./tools && deno run --allow-read --allow-write --allow-run ./codegen-scraper.ts > ../tmp/codegen-scraper.out"
 	}
 }
