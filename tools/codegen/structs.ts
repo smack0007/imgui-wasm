@@ -1,6 +1,18 @@
 import { CodeGenStructs } from "./types.ts";
 
 export const structs: CodeGenStructs = {
+  // TODO: Scrape this
+  ImGuiContext: {
+    size: 0,
+    members: {},
+  },
+
+  // TODO: Scrape this
+  ImFontAtlas: {
+    size: 0,
+    members: {},
+  },
+
   ImGuiIO: {
     size: 14344,
     members: {
@@ -399,17 +411,17 @@ export const structs: CodeGenStructs = {
     },
   },
 
-	ImVec2: {
-		size: 8,
-		members: {
-			x: {
-				type: "float",
-				offset: 0,
-			},
-			y: {
-				type: "float",
-				offset: 4,
-			},
-		}
-	}
+  ImVec2: {
+    size: 8,
+    members: {
+      x: {
+        type: "float",
+        offset: 0,
+      },
+      y: {
+        type: "float",
+        offset: 4,
+      },
+    },
+  },
 } as const;
