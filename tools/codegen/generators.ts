@@ -2,6 +2,7 @@ import { structs } from "./structs.ts";
 import {
   CodeGenFunctionParam,
   CodeGenFunctions,
+  CodeGenStructMember,
   CodeGenStructs,
 } from "./types.ts";
 
@@ -17,6 +18,10 @@ async function writeLinesToFile(path: string, lines: string[]): Promise<void> {
   await (await Deno.run({ cmd: ["deno", "fmt", path] })).status();
 }
 
+function isPointer(data: CodeGenFunctionParam | CodeGenStructMember): boolean {
+  return data.type.endsWith("*");
+}
+
 export async function writeStructs(
   filePath: string,
   structs: CodeGenStructs
@@ -24,9 +29,37 @@ export async function writeStructs(
   const lines = createLines();
   lines.push("// deno-lint-ignore-file no-unused-vars");
   lines.push("");
+  lines.push(`import { Pointer } from "./types.ts";`);
+  lines.push(`import { wasm } from "./wasm.ts";`);
 
   for (const [structName, struct] of Object.entries(structs)) {
     lines.push(`export class ${structName} {`);
+    lines.push(`public static readonly SIZE_IN_BYTES = ${struct.size};`);
+    lines.push("");
+    lines.push(`private readonly _view;`);
+    lines.push("");
+    lines.push(
+      `constructor(private readonly _pointer: Pointer<${structName}>) {`
+    );
+    lines.push("this._view = new DataView(wasm.memory.buffer);");
+    lines.push("}");
+    lines.push("");
+
+    for (const [memberName, member] of Object.entries(struct.members)) {
+      lines.push(`public get ${memberName}(): unknown {`);
+
+      if (isPointer(member)) {
+        lines.push(
+          `return this._view.getUint32(this._pointer + ${member.offset}, true);`
+        );
+      } else {
+        lines.push("return null;");
+      }
+
+      lines.push("}");
+      lines.push("");
+    }
+
     lines.push("}");
     lines.push("");
   }

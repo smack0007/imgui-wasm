@@ -1,8 +1,9 @@
 import { ensureDirectory } from "./fs.ts";
 import { EXT_PATH, joinPath, TMP_PATH } from "./paths.ts";
 
-const FILE_PATHS_TO_SCRAPE = [joinPath(EXT_PATH, "cimgui", "imgui", "imgui.h")];
+const CIMGUI_HEADER_PATH = joinPath(EXT_PATH, "cimgui", "cimgui.h");
 
+// TODO: For now let's just limit which structs get scraped. Eventually we should get rid of this though.
 const STRUCTS_TO_SCRAPE = ["ImGuiIO", "ImVec2"];
 
 let buffer = "";
@@ -34,25 +35,18 @@ function writePrintF(value: string, ...args: string[]): void {
 async function main(): Promise<number> {
   writeStartCode();
 
-  for await (const filePath of FILE_PATHS_TO_SCRAPE) {
-    writePrintF(`//`);
-    writePrintF(`// ${filePath}`);
-    writePrintF(`//`);
-    writePrintF("");
-    await scrapeFile(filePath);
-    writePrintF("");
-  }
+  await scrapeFile(CIMGUI_HEADER_PATH);
 
   writeEndCode();
 
   ensureDirectory(TMP_PATH);
 
-  const cOutputPath = `${TMP_PATH}/codegen-scraper.cpp`;
+  const cOutputPath = `${TMP_PATH}/codegen-scraper.c`;
   await Deno.writeTextFile(cOutputPath, buffer);
 
   const exeOutputPath = `${TMP_PATH}/codegen-scraper.exe`;
   const { code } = await Deno.run({
-    cmd: ["clang++", cOutputPath, "-o", exeOutputPath],
+    cmd: ["clang", cOutputPath, "-o", exeOutputPath],
   }).status();
 
   if (code !== 0) {
@@ -66,7 +60,9 @@ async function main(): Promise<number> {
 }
 
 function writeStartCode(): void {
-  write(`#include "../ext/cimgui/imgui/imgui.h"`);
+  write(`#define CIMGUI_DEFINE_ENUMS_AND_STRUCTS`);
+  write(`#include "../ext/cimgui/cimgui.h"`);
+  write("#include <stddef.h>");
   write("#include <stdio.h>");
   write("");
   write("int main(int argc, char* args[]) {");
@@ -97,6 +93,7 @@ async function scrapeFile(filePath: string): Promise<void> {
     if (captureMode === null) {
       for (const struct of STRUCTS_TO_SCRAPE) {
         if (line === `struct ${struct}`) {
+          writePrintF(`/* Struct */`);
           writePrintF(`${struct}: {`);
           writePrintF("\tsize: %llu,", `sizeof(${struct})`);
           writePrintF("\tmembers: {");
@@ -104,29 +101,75 @@ async function scrapeFile(filePath: string): Promise<void> {
           captureName = struct;
         }
       }
+
+      if (line.startsWith("CIMGUI_API ")) {
+        const funcDeclaration = line.substring("CIMGUI_API ".length);
+
+        write(`// ${funcDeclaration}`);
+
+        const parts = funcDeclaration
+          .replaceAll(", ", ",")
+          // replace the const stuff for now so that split sees it as one piece
+          .replaceAll("const char*", "const_char*")
+          // Just get rid of no parameters declaration.
+          .replaceAll("(void)", "()")
+          .split(/(\s|\(|\)|,)+/)
+          .filter(
+            (x) =>
+              x.trim() !== "" &&
+              x !== "," &&
+              x !== "(" &&
+              x !== ")" &&
+              x !== ";"
+          );
+
+        write(`// ${JSON.stringify(parts)}`);
+
+        writePrintF("/* Function */");
+        writePrintF(`${parts[1]}: {`);
+
+        writePrintF("\tparameters: {");
+        for (let i = 2; i < parts.length; i += 2) {
+          writePrintF(`\t\t${parts[i + 1]}: {`);
+          writePrintF(`\t\t\ttype: "${parts[i]}",`);
+          writePrintF("\t\t},");
+        }
+        writePrintF("\t},");
+        writePrintF("\tresult: {");
+        writePrintF(`\t\ttype: "${parts[0]}",`);
+        writePrintF("\t},");
+        writePrintF("},");
+        writePrintF("");
+      }
     } else if (captureMode === "struct") {
-      if (
-        !line.startsWith("{") &&
-        !line.startsWith("}") &&
-        !line.startsWith("IMGUI_API ") &&
-        !line.startsWith("#") &&
-        line.indexOf("(") === -1 &&
-        line.indexOf("CLASS_EXTRA") === -1
-      ) {
-        write(`// ${line}`);
+      if (!line.startsWith("{") && !line.startsWith("}")) {
+        write(`// Line: ${line}`);
 
         const parts = line
           .replaceAll(", ", ",")
+          // ImGuiIo has a weird declaration for Fonts
           .replaceAll("ImFontAtlas*Fonts", "ImFontAtlas* Fonts")
-          .replaceAll("const char*", "char*")
+          // replace the const stuff for now so that split sees it as one piece
+          .replaceAll("const char*", "const_char*")
           .split(/\s+/, 2);
+
         write(`// ${JSON.stringify(parts)}`);
 
-        const memberType = parts[0];
+        let memberType = parts[0];
+
+        if (memberType.startsWith("const_")) {
+          memberType = memberType.replace("const_", "const ");
+        }
+
         const memberNames = parts[1].split(",");
 
         for (let memberName of memberNames) {
-          if (memberName.startsWith("(*") || memberName === "_UnusedPadding;") {
+          if (
+            // TODO: We'll need to be able to parse funcitons eventually
+            memberName.startsWith("(*") ||
+            // Skip over _UnusedPadding
+            memberName === "_UnusedPadding;"
+          ) {
             continue;
           }
 
@@ -165,6 +208,8 @@ async function scrapeFile(filePath: string): Promise<void> {
       }
     }
   }
+
+  writePrintF("");
 }
 
 Deno.exit(await main());

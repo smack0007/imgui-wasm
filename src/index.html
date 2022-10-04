@@ -3,19 +3,25 @@
   <head></head>
   <body>
     <script type="module">
-      import { igCreateContext } from "./imgui.js";
+      import {
+        igCreateContext,
+        igStyleColorsDark,
+        igGetIO,
+        igNewFrame,
+        wasm,
+      } from "./imgui.js";
 
       const igContext = igCreateContext(null);
       console.info(igContext);
-      // instance.exports.igStyleColorsDark(null);
+      igStyleColorsDark(null);
 
-      // const ioPtr = instance.exports.igGetIO();
-      // console.info("ioPtr", ioPtr);
-      // const memoryView = new DataView(memory.buffer);
-      // memoryView.setFloat32(ioPtr + 8, 800.0, true);
-      // memoryView.setFloat32(ioPtr + 12, 600.0, true);
+      const ioPtr = igGetIO();
+      console.info("ioPtr", ioPtr);
+      const memoryView = new DataView(wasm.memory.buffer);
+      memoryView.setFloat32(ioPtr + 8, 800.0, true);
+      memoryView.setFloat32(ioPtr + 12, 600.0, true);
 
-      // instance.exports.igNewFrame();
+      igNewFrame();
       // instance.exports.igShowDemoWindow(true);
       // instance.exports.igRender();
       // console.info(instance.exports.igGetDrawData());
